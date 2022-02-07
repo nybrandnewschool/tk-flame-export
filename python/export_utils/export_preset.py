@@ -569,9 +569,10 @@ class ExportPreset(object):
             template_defs[t] = template_defs[t].replace("{width}", "<width>")
             template_defs[t] = template_defs[t].replace("{height}", "<height>")
 
+            # DISABLED DUE TO FLAME EXPORT ERROR (<ext> token unavailable during batch export.)
             # Now carry over the sequence token
-            (head, _) = os.path.splitext(template_defs[t])
-            template_defs[t] = "%s<ext>" % head
+            # (head, _) = os.path.splitext(template_defs[t])
+            # template_defs[t] = "%s<ext>" % head
 
             self._app.log_debug("   Flame:  %s" % template_defs[t])
 
