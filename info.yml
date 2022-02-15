@@ -45,6 +45,35 @@ configuration:
         description: The ShotGrid task template to assign to new shot parent entities
         default_value: ""
 
+    entity_parent_fields:
+        type: dict
+        description: Entity, parent field key value pairs. Each key is an Entity type and the value is
+                     the field on the Entity that is linked to it's parent Entity.
+        values:
+            type: dict
+            field:
+                type: str
+                description: Name of ShotGrid field.
+            entity_type:
+                type: str
+                description: Entity type the field refers to.
+        default_value:
+            Shot: {'field': 'sg_sequence', 'entity_type': 'Sequence'}
+
+    context_selector_options:
+        type: dict
+        description: Options for the Context Selector dialog.
+        items:
+            hide_parent_template_selector:
+                type: bool
+                description: Hide the task template selector for new sequences.
+            hide_shot_template_selector:
+                type: bool
+                description: Hide the task template selector when creating a new shot.
+        default_value:
+            hide_parent_template_selector: True
+            hide_shot_template_selector: False
+
     plate_presets:
         type: list
         description: "A list of dictionaries in which you define the various export presets to
@@ -81,7 +110,7 @@ configuration:
                 template:
                     description: Toolkit file system template to control where plate output goes on disk.
                     type: template
-                    fields: context, [SEQ], [flame.frame], Shot, version, segment_name, [YYYY], [MM], [DD], [hh], [mm], [ss], [width], [height], *
+                    fields: context, [SEQ], [flame.frame], Shot, [version], [segment_name], [YYYY], [MM], [DD], [hh], [mm], [ss], [width], [height], *
 
                 quicktime_template:
                     description: If not set to null, a higher res quicktime will be generated and stored on disk,
@@ -92,7 +121,7 @@ configuration:
                     type: template
                     allows_empty: True
                     default_value: null
-                    fields: context, Shot, version, segment_name, [YYYY], [MM], [DD], [hh], [mm], [ss], *
+                    fields: context, Shot, [version], [segment_name], [YYYY], [MM], [DD], [hh], [mm], [ss], *
 
 
                 batch_render_template:
@@ -102,7 +131,7 @@ configuration:
                     type: template
                     allows_empty: True
                     default_value: null
-                    fields: context, [SEQ], [flame.frame], Shot, version, segment_name, [YYYY], [MM], [DD], [hh], [mm], [ss], [width], [height], *
+                    fields: context, [SEQ], [flame.frame], Shot, [version], [segment_name], [YYYY], [MM], [DD], [hh], [mm], [ss], [width], [height], *
 
 
                 batch_quicktime_template:
@@ -114,7 +143,7 @@ configuration:
                     type: template
                     allows_empty: True
                     default_value: null
-                    fields: context, Shot, version, segment_name, [YYYY], [MM], [DD], [hh], [mm], [ss], *
+                    fields: context, Shot, [version], [segment_name], [YYYY], [MM], [DD], [hh], [mm], [ss], *
 
                 quicktime_publish_type:
                     type: tank_type
@@ -143,7 +172,7 @@ configuration:
                      This clip file contains Flame related metadata that Flame uses to deconstruct data as it is
                      being read back into the system."
         type: template
-        fields: context, Shot, segment_name, [YYYY], [MM], [DD], [hh], [mm], [ss], *
+        fields: context, Shot, [segment_name], [YYYY], [MM], [DD], [hh], [mm], [ss], *
 
     bypass_shotgun_transcoding:
         description: Try to bypass the ShotGrid server side transcoding if possible. This will only generate
@@ -173,6 +202,15 @@ configuration:
         description: Large requests will be broken until smaller requests of given chunk size to avoid timeout.
         default_value: 20
 
+    disable_clip_export:
+        type: bool
+        description: Disable exporting of open clip and batch files.
+        default_value: False
+
+    context_selector_hook:
+        type: hook
+        default_value: "{self}/context_selector.py"
+        description: Used to determine the ShotGrid entity for Upload.
 
 # this app works in all engines - it does not contain
 # any host application specific commands
@@ -192,3 +230,5 @@ requires_engine_version: "v1.14.4"
 
 # the frameworks required to run this app
 frameworks:
+  - {"name": "tk-framework-qtwidgets", "version": "v2.x.x", "minimum_version": "v2.8.0"}
+  - {"name": "tk-framework-shotgunutils", "version": "v5.x.x", "minimum_version": "v5.7.0"}
