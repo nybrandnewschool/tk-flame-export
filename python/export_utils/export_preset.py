@@ -346,6 +346,18 @@ class ExportPreset(object):
                   <framePadding>{FRAME_PADDING}</framePadding>
                   <useTimecode>{USE_TIMECODE}</useTimecode>
                </name>
+
+               {CREATE_OPEN_CLIP}
+
+               <reImport>
+                  <namePattern />
+               </reImport>
+            </preset>
+        """
+            % preset_version
+        )
+
+        open_clip_xml = ("""
                <createOpenClip>
                   <namePattern>{SEGMENT_CLIP_NAME_PATTERN}</namePattern>
                   <version>
@@ -359,13 +371,13 @@ class ExportPreset(object):
                      <outputPathPattern>{OUTPUT_PATH_PATTERN}</outputPathPattern>
                   </batchSetup>
                </createOpenClip>
-               <reImport>
-                  <namePattern />
-               </reImport>
-            </preset>
-        """
-            % preset_version
-        )
+        """)
+
+        # disable open clip export
+        if self._app.get_setting('disable_clip_export'):
+            xml = xml.replace("{CREATE_OPEN_CLIP}", "")
+        else:
+            xml = xml.replace("{CREATE_OPEN_CLIP}", open_clip_xml)
 
         # wedge in the video settings we got from the hook
         xml = xml.replace("{VIDEO_EXPORT_PRESET}", video_preset_xml)
@@ -571,8 +583,8 @@ class ExportPreset(object):
 
             # DISABLED DUE TO FLAME EXPORT ERROR (<ext> token unavailable during batch export.)
             # Now carry over the sequence token
-            # (head, _) = os.path.splitext(template_defs[t])
-            # template_defs[t] = "%s<ext>" % head
+            (head, _) = os.path.splitext(template_defs[t])
+            template_defs[t] = "%s<ext>" % head
 
             self._app.log_debug("   Flame:  %s" % template_defs[t])
 
