@@ -81,6 +81,12 @@ class FlameExport(Application):
         # flag to indicate that something was actually submitted by the export process
         self._reached_post_asset_phase = False
 
+        # Stored data from requested upload context
+        # These fields are filled out only when the ContextSelectorDialog is called.
+        # I.E. when an Entity matching the sequenceName is not found in ShotGrid.
+        self._requested_context_options = None
+        self._requested_context_entity = None
+
         # load up our export presets
         # this wrapper class is used later on to access export presets in various ways
         self.export_preset_handler = export_utils.ExportPresetHandler()
@@ -221,8 +227,39 @@ class FlameExport(Application):
             self._abort_export(info, "Cannot export due to spaces in sequence names.")
             return
 
+        # Attempt to find an entity matching info['sequenceName']
+        entity = self.execute_hook_method(
+            "context_selector_hook", 
+            "find_entity",
+            info=info,
+        )
+
+        # If not entity is found matching info['sequenceName']
+        # run the context_selector_hook.new_entity
+        if not entity:
+            entity = self.execute_hook_method(
+                "context_selector_hook",
+                "new_entity",
+                info=info,
+            )
+
+            # If new_entity returned None assume the user has decided to skip SG Upload.
+            if not entity:
+                self._abort_export(info, 'User has cancelled Sequence export.')
+                return
+
+        # Get Task template for shot creation
+        shot_task_template = self.get_setting('task_template') or None
+        if self._requested_context_options:
+            if self._requested_context_options.get('shot_task_template'):
+                shot_task_template = self._requested_context_options['shot_task_template']['code']
+
         # set up object to represent sequence and shots
-        sequence = export_utils.Sequence(sequence_name)
+        sequence = export_utils.Sequence(
+            sequence_name, 
+            entity['id'],
+            shot_task_template,
+        )
         for shot_name in shot_names:
             sequence.add_shot(shot_name)
 
@@ -956,3 +993,75 @@ class FlameExport(Application):
             self.engine.thumbnail_generator.finalize()
         finally:
             self.engine.clear_busy()
+
+    def request_upload_context(self, message, defaults=None):
+        """
+        Shows a dialog allowing a user to select a context.
+
+        Arguments:
+            message (str): A message to display at the top of the Dialog.
+            defaults (dict): Default options for dialog.
+
+        Defaults Schema:
+            entity (dict): Entity dict with type, id, and code fields.
+            mode (int): 0 - Select, 1 - New
+            entity_name (str): Name of Entity.
+            entity_type (str): Type of Entity.
+            task_template (str): Name of TaskTemplate to use in creation mode.
+
+        Returns:
+            ShotGrid Entity dict.
+        """
+
+        dialogs = self.import_module("dialogs")
+        dialog = dialogs.ContextSelectorDialog(
+            app=self,
+            message=message,
+            defaults=defaults,
+            parent=self.engine._get_dialog_parent(),
+        )
+        return_code = dialog.exec_()
+        if return_code == dialog.Rejected:
+            return
+
+        options = dialog.get_options()
+        self._requested_context_options = options
+
+        if options['mode'] == dialog.New:
+            # Check if entity already exists
+            entity = self.shotgun.find_one(
+                options['entity_type'],
+                [['code', 'is', options['entity_name']], ['project', 'is', self.context.project]],
+                ['code'],
+            )
+            if entity:
+                self.log_debug('Found existing entity %s...' % entity)
+                return entity
+
+            # Create it if it doesn't
+            data = {
+                "code": options['entity_name'],
+                "description": "Created by the ShotGrid Flame integration.",
+                "task_template": options['task_template'],
+                "project": self.context.project,
+            }
+
+            # Set parent using entity_parent_fields setting.
+            parent_field_info = self.get_setting('entity_parent_fields').get(options['entity_type'])
+            if parent_field_info and options['parent']:
+                data[parent_field_info['field']] = options['parent']
+
+            self.log_debug('Creating entity with data %s' % data)
+            entity = self.shotgun.create(
+                options['entity_type'],
+                data,
+                ['code'],
+            )
+            self.log_debug('Created entity %s...' % entity)
+            self._requested_context_entity = entity
+            return entity
+
+        if options['entity']:
+            self.log_debug('Existing entity selected %s...' % options['entity'])
+            self._requested_context_entity = entity
+            return options['entity']

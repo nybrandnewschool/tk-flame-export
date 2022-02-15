@@ -21,14 +21,15 @@ class Sequence(object):
     Class representing a sequence in ShotGrid/Flame
     """
 
-    def __init__(self, name):
+    def __init__(self, name, shotgun_id, shot_task_template):
         """
         Constructor
 
         :param name: Sequence name
         """
         self._name = name
-        self._shotgun_id = None
+        self._shotgun_id = shotgun_id
+        self._shot_task_template = shot_task_template
         self._shots = {}
 
         self._app = sgtk.platform.current_bundle()
@@ -349,14 +350,6 @@ class Sequence(object):
         ShotGrid Shot and Sequence data for objects will be populated.
         """
         self._app.log_debug("Ensuring sequence and shots exists in ShotGrid...")
-        # get some configuration settings first
-        shot_task_template = self._app.get_setting("task_template")
-        if shot_task_template == "":
-            shot_task_template = None
-
-        parent_task_template = self._app.get_setting("shot_parent_task_template")
-        if parent_task_template == "":
-            parent_task_template = None
 
         # handy shorthand
         project = self._app.context.project
@@ -367,66 +360,19 @@ class Sequence(object):
             "Locating %s %s..." % (self._shot_parent_entity_type, self.name),
         )
 
-        self._app.log_debug("Locating Shot parent object in ShotGrid...")
-        sg_parent = self._app.shotgun.find_one(
-            self._shot_parent_entity_type,
-            [["code", "is", self.name], ["project", "is", project]],
-        )
-
-        if sg_parent:
-            self._app.log_debug("Parent %s already exists in ShotGrid." % sg_parent)
-            self._shotgun_id = sg_parent["id"]
-
-        else:
-            # Create a new parent object in ShotGrid
-
-            # First see if we should assign a task template
-            if parent_task_template:
-                # resolve task template
-                self._app.engine.show_busy(
-                    "Preparing ShotGrid...", "Loading task template..."
-                )
-                sg_task_template = self._app.shotgun.find_one(
-                    "TaskTemplate", [["code", "is", parent_task_template]]
-                )
-                if not sg_task_template:
-                    raise TankError(
-                        "The task template '%s' does not exist in ShotGrid!"
-                        % parent_task_template
-                    )
-            else:
-                sg_task_template = None
-
-            self._app.engine.show_busy(
-                "Preparing ShotGrid...",
-                "Creating %s %s..." % (self._shot_parent_entity_type, self.name),
-            )
-
-            sg_parent = self._app.shotgun.create(
-                self._shot_parent_entity_type,
-                {
-                    "code": self.name,
-                    "task_template": sg_task_template,
-                    "description": "Created by the ShotGrid Flame exporter.",
-                    "project": project,
-                },
-            )
-            self._shotgun_id = sg_parent["id"]
-            self._app.log_debug("Created parent %s" % sg_parent)
-
         # Locate a task template for shots
-        if shot_task_template:
+        if self._shot_task_template:
             # resolve task template
             self._app.engine.show_busy(
                 "Preparing ShotGrid...", "Loading task template..."
             )
             sg_task_template = self._app.shotgun.find_one(
-                "TaskTemplate", [["code", "is", shot_task_template]]
+                "TaskTemplate", [["code", "is", self._shot_task_template]]
             )
             if not sg_task_template:
                 raise TankError(
                     "The task template '%s' does not exist in ShotGrid!"
-                    % shot_task_template
+                    % self._shot_task_template
                 )
         else:
             sg_task_template = None
