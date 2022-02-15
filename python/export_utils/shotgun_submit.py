@@ -74,9 +74,42 @@ class ShotgunSubmitter(object):
             "published_file_type": publish_type,
         }
 
-        self._app.log_debug("Register publish in ShotGrid: %s" % str(args))
-        sg_publish_data = sgtk.util.register_publish(**args)
-        self._app.log_debug("Register complete: %s" % sg_publish_data)
+        # Check if publish already exists
+        dry_args = dict(args, dry_run=True)
+        dry_publish_data = sgtk.util.register_publish(**dry_args)
+        self._app.log_debug("Checking for existing publish in ShotGrid: %s" % str(dry_args))
+        sg_publish_data = self._app.shotgun.find_one(
+            'PublishedFile',
+            filters=[
+                ['code', 'is', dry_publish_data['code']],
+                ['entity', 'is', dry_publish_data.get('entity', context.entity)],
+                ['version_number', 'is', dry_publish_data.get('version_number', version_number)]
+            ],
+            fields=[
+                'code',
+                'created_by',
+                'description',
+                'entity',
+                'id',
+                'published_file_type',
+                'name',
+                'path',
+                'path_cache',
+                'project',
+                'published_file_type',
+                'task',
+                'type',
+                'version_number',
+            ],
+        )
+
+        if not sg_publish_data:
+            self._app.log_debug("Register render publish in ShotGrid: %s" % str(args))
+            sg_publish_data = sgtk.util.register_publish(**args)
+            self._app.log_debug("Register complete: %s" % sg_publish_data)
+        else:
+            self._app.log_debug('Found existing publish: %s' % sg_publish_data)
+
         return sg_publish_data
 
     def register_video_publish(
@@ -129,9 +162,41 @@ class ShotgunSubmitter(object):
             "published_file_type": preset_obj.get_render_publish_type(),
         }
 
-        self._app.log_debug("Register render publish in ShotGrid: %s" % str(args))
-        sg_publish_data = sgtk.util.register_publish(**args)
-        self._app.log_debug("Register complete: %s" % sg_publish_data)
+        # Check if publish already exists
+        dry_args = dict(args, dry_run=True)
+        dry_publish_data = sgtk.util.register_publish(**dry_args)
+        self._app.log_debug("Checking for existing publish in ShotGrid: %s" % str(dry_args))
+        sg_publish_data = self._app.shotgun.find_one(
+            'PublishedFile',
+            filters=[
+                ['code', 'is', dry_publish_data['code']],
+                ['entity', 'is', dry_publish_data.get('entity', context.entity)],
+                ['version_number', 'is', dry_publish_data.get('version_number', version_number)]
+            ],
+            fields=[
+                'code',
+                'created_by',
+                'description',
+                'entity',
+                'id',
+                'published_file_type',
+                'name',
+                'path',
+                'path_cache',
+                'project',
+                'published_file_type',
+                'task',
+                'type',
+                'version_number',
+            ],
+        )
+
+        if not sg_publish_data:
+            self._app.log_debug("Register render publish in ShotGrid: %s" % str(args))
+            sg_publish_data = sgtk.util.register_publish(**args)
+            self._app.log_debug("Register complete: %s" % sg_publish_data)
+        else:
+            self._app.log_debug('Found existing publish: %s' % sg_publish_data)
 
         # return the sg data for the main publish
         return sg_publish_data
