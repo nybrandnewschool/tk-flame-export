@@ -11,4 +11,4 @@
 from .submit_dialog import SubmitDialog
 from .batch_render_dialog import BatchRenderDialog
 from .summary_dialog import SubmissionFailedDialog, SubmissionCompleteDialog
-from .context_selector_dialog import ContextSelectorDialog
+from .extended_submit_dialog import ExtendedSubmitDialog
