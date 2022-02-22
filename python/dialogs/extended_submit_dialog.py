@@ -27,13 +27,13 @@ def HSeparator():
     return frame
 
 
-class ContextSelectorDialog(QtGui.QDialog):
+class ExtendedSubmitDialog(QtGui.QDialog):
 
     Select = 0
     New = 1
 
     def __init__(self, app, message, defaults=None, parent=None):
-        super(ContextSelectorDialog, self).__init__(parent)
+        super(ExtendedSubmitDialog, self).__init__(parent)
 
         # Bind appplication
         self.app = app
@@ -98,7 +98,6 @@ class ContextSelectorDialog(QtGui.QDialog):
         self.new_tab_layout.addRow(FieldLabel('Type:'), self.entity_type)
         self.new_tab_layout.addRow(FieldLabel('Parent:'), self.parent_selector)
         self.new_tab_layout.addRow(FieldLabel('Template:'), self.template_selector)
-        self.new_tab_layout.addRow(FieldLabel('Shot Template:'), self.shot_template_selector)
 
         self.new_tab = QtGui.QWidget()
         self.new_tab.setLayout(self.new_tab_layout)
@@ -108,6 +107,17 @@ class ContextSelectorDialog(QtGui.QDialog):
         self.tabs.setDocumentMode(True)
         self.tabs.addTab(self.select_tab, 'Select')
         self.tabs.addTab(self.new_tab, 'New')
+
+        # Options
+        self.comment = QtGui.QTextEdit()
+        self.preset = QtGui.QComboBox()
+
+        # Options Layout
+        self.options_layout = QtGui.QFormLayout()
+        self.options_layout.addRow(FieldLabel('Comment:'), QtGui.QLabel(''))
+        self.options_layout.addRow(self.comment)
+        self.options_layout.addRow(FieldLabel('Export Preset:'), self.preset)
+        self.options_layout.addRow(FieldLabel('Shot Template:'), self.shot_template_selector)
 
         # Footer
         self.cancel_button = QtGui.QPushButton('Cancel')
@@ -122,6 +132,8 @@ class ContextSelectorDialog(QtGui.QDialog):
         layout = QtGui.QVBoxLayout()
         layout.addWidget(self.message)
         layout.addWidget(self.tabs)
+        layout.addWidget(HSeparator())
+        layout.addLayout(self.options_layout)
         layout.addLayout(self.button_layout)
         self.setLayout(layout)
 
@@ -139,7 +151,7 @@ class ContextSelectorDialog(QtGui.QDialog):
 
         # Window Attributes
         self.setMinimumWidth(400)
-        self.setWindowTitle('Select Review Context')
+        self.setWindowTitle('Submit to ShotGrid')
         self.setWindowIcon(QtGui.QIcon(app.icon_256))
 
         if defaults:
@@ -151,7 +163,7 @@ class ContextSelectorDialog(QtGui.QDialog):
 
         if self.hide_shot_template_selector:
             self.shot_template_selector.hide()
-            self.new_tab_layout.labelForField(self.shot_template_selector).hide()
+            self.options_layout.labelForField(self.shot_template_selector).hide()
 
     def closeEvent(self, event):
         self._task_manager.shut_down()
@@ -179,11 +191,11 @@ class ContextSelectorDialog(QtGui.QDialog):
 
     @property
     def hide_parent_template_selector(self):
-        return self.app.get_setting('context_selector_options').get('hide_parent_template_selector', True)
+        return self.app.get_setting('submit_dialog_options').get('hide_parent_template_selector', True)
 
     @property
     def hide_shot_template_selector(self):
-        return self.app.get_setting('context_selector_options').get('hide_shot_template_selector', False)
+        return self.app.get_setting('submit_dialog_options').get('hide_shot_template_selector', False)
 
     def _on_parent_changed(self, type, id, name):
         self._parent = {'type': type, 'id': id, 'code': name}
@@ -201,10 +213,26 @@ class ContextSelectorDialog(QtGui.QDialog):
     def _on_entity_changed(self, type, id, name):
         self.set_entity({'type': type, 'id': id, 'code': name})
 
+    def set_presets(self, presets):
+        """Sets the presets available in the export presets field."""
+
+        self.preset.clear()
+        self.preset.addItems(presets)
+
+    def set_preset(self, preset):
+        """Sets the preset field to the provided value."""
+
+        self.preset.setCurrentText(preset)
+
+    def set_comment(self, text):
+        """Sets the comment field's text."""
+
+        self.comment.setText(text)
+
     def set_mode(self, mode):
         """Sets the active tab to Select or New.
 
-        Modes can be passed using ContextSelectorDialog.Select and New or
+        Modes can be passed using ExtendedSubmitDialog.Select and New or
         simply 0 and 1.
         """
 
@@ -247,7 +275,7 @@ class ContextSelectorDialog(QtGui.QDialog):
             entity_type (str): Optional entity_type lookup for TaskTemplate used
                 when template is passed as a string.
         """
-        
+
         if isinstance(template, dict):
             self.template_selector.setText(template.get('name', template.get('code', '')))
             self._template = template
@@ -345,6 +373,15 @@ class ContextSelectorDialog(QtGui.QDialog):
         else:
             self.set_task_template(self.default_shot_template)
 
+        if options.get('comment'):
+            self.set_comment(options['comment'])
+
+        if options.get('presets'):
+            self.set_presets(options['presets'])
+
+        if options.get('preset'):
+            self.set_preset(options['preset'])
+
     def get_options(self):
         """Returns the values of this dialogs options as a dict."""
 
@@ -357,4 +394,6 @@ class ContextSelectorDialog(QtGui.QDialog):
             'task_template': self._template,
             'shot_task_template': self._shot_template,
             'parent': self._parent,
+            'comment': self.comment.text(),
+            'preset': self.preset.currentText(),
         }
