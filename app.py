@@ -81,11 +81,11 @@ class FlameExport(Application):
         # flag to indicate that something was actually submitted by the export process
         self._reached_post_asset_phase = False
 
-        # Stored data from requested upload context
+        # Stored data from request_submit_options
         # These fields are filled out only when the ContextSelectorDialog is called.
         # I.E. when an Entity matching the sequenceName is not found in ShotGrid.
-        self._requested_context_options = None
-        self._requested_context_entity = None
+        self._submit_options = None
+        self._submit_entity = None
 
         # load up our export presets
         # this wrapper class is used later on to access export presets in various ways
@@ -136,42 +136,31 @@ class FlameExport(Application):
         self._sequences = []
         self._reached_post_asset_phase = False
 
-        # pop up a UI asking the user for description
-        dialogs = self.import_module("dialogs")
-
-        (return_code, widget) = self.engine.show_modal(
-            "Export Shots",
-            self,
-            dialogs.SubmitDialog,
-            self.export_preset_handler.get_preset_names(),
+        # Show dialog allowing user to select ShotGrid Context,
+        # Add a Comment, and choose an Export Preset...
+        options = self.request_submit_options(
+            message='Select or create a <b>Sequence</b> to upload to.<br>',
+            defaults={
+                'entity_type': self.get_setting('shot_parent_entity_type'),
+                'task_template': self.get_setting('shot_parent_task_template'),
+                'shot_task_template': self.get_setting('task_template'),
+                'presets': self.export_preset_handler.get_preset_names(),
+            },
         )
-
-        if return_code == QtGui.QDialog.Rejected:
-            # user pressed cancel
-            self._abort_export(info, "User cancelled the operation.")
-
-        else:
-            # get comments from user
-            self._user_comments = widget.get_comments()
-            # get export preset name
-            export_preset_name = widget.get_video_preset()
-            # resolve this to an object
+        if options:
+            self._user_comments = options['comment'] or None
             self._export_preset = self.export_preset_handler.get_preset_by_name(
-                export_preset_name
+                options['preset']
             )
-
-            # populate the host to use for the export. Currently hard coded to local
-            info["destinationHost"] = self.engine.get_server_hostname()
-
-            # let the export root path align with the primary project root
-            info["destinationPath"] = self.sgtk.project_path
-
-            # pick up the xml export profile from the configuration
-            info["presetPath"] = self._export_preset.get_xml_path()
+            info['destinationHost'] = self.engine.get_server_hostname()
+            info['destinationPath'] = self.sgtk.project_path
+            info['presetPath'] = self._export_preset.get_xml_path()
             self.log_debug(
                 "%s: Starting custom export session with preset '%s'"
                 % (self, info["presetPath"])
             )
+        else:
+            self._abort_export(info, 'User has cancelled Sequence export.')
 
         # Log usage metrics
         if hasattr(self, "log_metric"):
@@ -215,48 +204,18 @@ class FlameExport(Application):
             self._abort_export(info, "Cannot export due to missing shot names.")
             return
 
-        # @TODO - add more generic validation
-        if " " in sequence_name:
-            QtGui.QMessageBox.warning(
-                None,
-                "Sequence name cannot contain spaces!",
-                "Your Sequence name contains spaces. This is currently not supported by "
-                "the ShotGrid/Flame integration. Try renaming your sequence and use for "
-                "example underscores instead of spaces, then try again!",
-            )
-            self._abort_export(info, "Cannot export due to spaces in sequence names.")
-            return
-
         # Attempt to find an entity matching info['sequenceName']
-        entity = self.execute_hook_method(
-            "context_selector_hook", 
-            "find_entity",
-            info=info,
-        )
-
-        # If not entity is found matching info['sequenceName']
-        # run the context_selector_hook.new_entity
-        if not entity:
-            entity = self.execute_hook_method(
-                "context_selector_hook",
-                "new_entity",
-                info=info,
-            )
-
-            # If new_entity returned None assume the user has decided to skip SG Upload.
-            if not entity:
-                self._abort_export(info, 'User has cancelled Sequence export.')
-                return
+        entity = self._submit_entity
 
         # Get Task template for shot creation
         shot_task_template = self.get_setting('task_template') or None
-        if self._requested_context_options:
-            if self._requested_context_options.get('shot_task_template'):
-                shot_task_template = self._requested_context_options['shot_task_template']['code']
+        if self._submit_options:
+            if self._submit_options.get('shot_task_template'):
+                shot_task_template = self._submit_options['shot_task_template']['code']
 
         # set up object to represent sequence and shots
         sequence = export_utils.Sequence(
-            sequence_name, 
+            sequence_name,
             entity['id'],
             shot_task_template,
         )
@@ -994,9 +953,11 @@ class FlameExport(Application):
         finally:
             self.engine.clear_busy()
 
-    def request_upload_context(self, message, defaults=None):
+    def request_submit_options(self, message, defaults=None):
         """
-        Shows a dialog allowing a user to select a context.
+        Shows the ExtendedSubmitDialog with options for Selecting the Sequence to
+        upload to, as well as options for choosing a Shot Task Template, Comment, and
+        Export Preset.
 
         Arguments:
             message (str): A message to display at the top of the Dialog.
@@ -1008,6 +969,9 @@ class FlameExport(Application):
             entity_name (str): Name of Entity.
             entity_type (str): Type of Entity.
             task_template (str): Name of TaskTemplate to use in creation mode.
+            shot_task_template (str): Name of TaskTemplate to use when creating Shots.
+            presets (list): List of export presets to choose from.
+            preset (str): Default export preset in presets list.
 
         Returns:
             ShotGrid Entity dict.
@@ -1025,7 +989,7 @@ class FlameExport(Application):
             return
 
         options = dialog.get_options()
-        self._requested_context_options = options
+        self._submit_options = options
 
         if options['mode'] == dialog.New:
             # Check if entity already exists
@@ -1058,10 +1022,10 @@ class FlameExport(Application):
                 ['code'],
             )
             self.log_debug('Created entity %s...' % entity)
-            self._requested_context_entity = entity
-            return entity
+            self._submit_entity = entity
+            return options
 
         if options['entity']:
             self.log_debug('Existing entity selected %s...' % options['entity'])
-            self._requested_context_entity = entity
-            return options['entity']
+            self._submit_entity = options['entity']
+            return options
