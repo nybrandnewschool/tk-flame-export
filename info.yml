@@ -60,7 +60,7 @@ configuration:
         default_value:
             Shot: {'field': 'sg_sequence', 'entity_type': 'Sequence'}
 
-    context_selector_options:
+    submit_dialog_options:
         type: dict
         description: Options for the Context Selector dialog.
         items:
@@ -206,11 +206,6 @@ configuration:
         type: bool
         description: Disable exporting of open clip and batch files.
         default_value: False
-
-    context_selector_hook:
-        type: hook
-        default_value: "{self}/context_selector.py"
-        description: Used to determine the ShotGrid entity for Upload.
 
 # this app works in all engines - it does not contain
 # any host application specific commands
