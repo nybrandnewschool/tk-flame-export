@@ -15,7 +15,11 @@ shotgun_search_widget = sgtk.platform.import_framework(
 def FieldLabel(text):
     """Blue Label styled to match Comments: from header image."""
 
-    return QtGui.QLabel('<p style="color:#30a7e3"><b>{}</b></p>'.format(text))
+    valid_text = '<p style="color:#30a7e3"><b>{}</b></p>'.format(text)
+    invalid_text = '<p style="color:#e33030"><b>{}</b></p>'.format(text)
+    label = QtGui.QLabel(valid_text)
+    label.setValid = lambda value: label.setText((invalid_text, valid_text)[value])
+    return label
 
 
 def HSeparator():
@@ -141,8 +145,8 @@ class ExtendedSubmitDialog(QtGui.QDialog):
         self.exit_code = QtGui.QDialog.Rejected
         self.submit_button.clicked.connect(self.accept)
         self.cancel_button.clicked.connect(self.reject)
-        self.submit_button.clicked.connect(self._task_manager.shut_down)
         self.cancel_button.clicked.connect(self._task_manager.shut_down)
+        self.entity_name.textEdited.connect(self._on_entity_name_changed)
         self.entity_selector.entity_activated.connect(self._on_entity_changed)
         self.template_selector.entity_activated.connect(self._on_template_changed)
         self.shot_template_selector.entity_activated.connect(self._on_shot_template_changed)
@@ -151,7 +155,7 @@ class ExtendedSubmitDialog(QtGui.QDialog):
 
         # Window Attributes
         self.setMinimumWidth(400)
-        self.setWindowTitle('Submit to ShotGrid')
+        self.setWindowTitle('ShotGrid Shot Export')
         self.setWindowIcon(QtGui.QIcon(app.icon_256))
 
         if defaults:
@@ -164,6 +168,14 @@ class ExtendedSubmitDialog(QtGui.QDialog):
         if self.hide_shot_template_selector:
             self.shot_template_selector.hide()
             self.options_layout.labelForField(self.shot_template_selector).hide()
+
+    def accept(self):
+        if not self.validate():
+            # Cancel accept - allow user to fix options...
+            return
+
+        self._task_manager.shut_down()
+        super(ExtendedSubmitDialog, self).accept()
 
     def closeEvent(self, event):
         self._task_manager.shut_down()
@@ -206,12 +218,18 @@ class ExtendedSubmitDialog(QtGui.QDialog):
     def _on_shot_template_changed(self, type, id, name):
         self._shot_template = {'type': type, 'id': id, 'code': name}
 
+    def _on_entity_changed(self, type, id, name):
+        self.set_entity({'type': type, 'id': id, 'code': name})
+        label = self.select_tab_layout.labelForField(self.entity_selector)
+        label.setValid(True)
+
     def _on_entity_type_changed(self, entity_type):
         self.update_task_template_filters(entity_type, self.default_template)
         self.update_parent_field(entity_type)
 
-    def _on_entity_changed(self, type, id, name):
-        self.set_entity({'type': type, 'id': id, 'code': name})
+    def _on_entity_name_changed(self, text):
+        label = self.new_tab_layout.labelForField(self.entity_name)
+        label.setValid(True)
 
     def set_presets(self, presets):
         """Sets the presets available in the export presets field."""
@@ -227,7 +245,7 @@ class ExtendedSubmitDialog(QtGui.QDialog):
     def set_comment(self, text):
         """Sets the comment field's text."""
 
-        self.comment.setText(text)
+        self.comment.setPlainText(text)
 
     def set_mode(self, mode):
         """Sets the active tab to Select or New.
@@ -382,18 +400,55 @@ class ExtendedSubmitDialog(QtGui.QDialog):
         if options.get('preset'):
             self.set_preset(options['preset'])
 
+    def get_entity(self):
+        if self._entity and self._entity['code'] == self.entity_selector.text():
+            return self._entity
+
+    def get_template(self):
+        if self._template and self._template['code'] == self.template_selector.text():
+            return self._template
+
+    def get_shot_template(self):
+        if self._shot_template and self._shot_template['code'] == self.shot_template_selector.text():
+            return self._shot_template
+
+    def get_parent(self):
+        if self._parent and self._parent['code'] == self.parent_selector.text():
+            return self._parent
+
     def get_options(self):
         """Returns the values of this dialogs options as a dict."""
 
         return {
-            'entity': self._entity,
+            'entity': self.get_entity(),
             'mode': self.tabs.currentIndex(),
             'mode_str': ('Select', 'New')[self.tabs.currentIndex()],
             'entity_name': self.entity_name.text(),
             'entity_type': self.entity_type.currentText(),
-            'task_template': self._template,
-            'shot_task_template': self._shot_template,
-            'parent': self._parent,
-            'comment': self.comment.text(),
+            'task_template': self.get_template(),
+            'shot_task_template': self.get_shot_template(),
+            'parent': self.get_parent(),
+            'comment': self.comment.toPlainText(),
             'preset': self.preset.currentText(),
         }
+
+    def validate(self):
+        options = self.get_options()
+        if options['mode'] == self.Select and not options['entity']:
+            label = self.select_tab_layout.labelForField(self.entity_selector)
+            label.setValid(False)
+            return False
+
+        if options['mode'] == self.New and not options['entity_name']:
+            label = self.new_tab_layout.labelForField(self.entity_name)
+            label.setValid(False)
+            return False
+
+        # Validation is successful, set all labels to Valid
+        labels = [
+            self.select_tab_layout.labelForField(self.entity_selector),
+            self.new_tab_layout.labelForField(self.entity_name),
+        ]
+        for label in labels:
+            label.setValid(True)
+        return True

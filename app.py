@@ -139,7 +139,9 @@ class FlameExport(Application):
         # Show dialog allowing user to select ShotGrid Context,
         # Add a Comment, and choose an Export Preset...
         options = self.request_submit_options(
-            message='Select or create a <b>Sequence</b> to upload to.<br>',
+            message=(
+                'Publish the selected Sequence to ShotGrid as Shots...<br>'
+            ),
             defaults={
                 'entity_type': self.get_setting('shot_parent_entity_type'),
                 'task_template': self.get_setting('shot_parent_task_template'),
@@ -148,7 +150,7 @@ class FlameExport(Application):
             },
         )
         if options:
-            self._user_comments = options['comment'] or None
+            self._user_comments = options['comment']
             self._export_preset = self.export_preset_handler.get_preset_by_name(
                 options['preset']
             )
@@ -208,10 +210,9 @@ class FlameExport(Application):
         entity = self._submit_entity
 
         # Get Task template for shot creation
-        shot_task_template = self.get_setting('task_template') or None
-        if self._submit_options:
-            if self._submit_options.get('shot_task_template'):
-                shot_task_template = self._submit_options['shot_task_template']['code']
+        shot_task_template = None
+        if self._submit_options and self._submit_options.get('shot_task_template'):
+            shot_task_template = self._submit_options['shot_task_template']['code']
 
         # set up object to represent sequence and shots
         sequence = export_utils.Sequence(
@@ -978,7 +979,7 @@ class FlameExport(Application):
         """
 
         dialogs = self.import_module("dialogs")
-        dialog = dialogs.ContextSelectorDialog(
+        dialog = dialogs.ExtendedSubmitDialog(
             app=self,
             message=message,
             defaults=defaults,
@@ -1000,7 +1001,8 @@ class FlameExport(Application):
             )
             if entity:
                 self.log_debug('Found existing entity %s...' % entity)
-                return entity
+                self._submit_entity = entity
+                return options
 
             # Create it if it doesn't
             data = {
