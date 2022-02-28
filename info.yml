@@ -160,6 +160,11 @@ configuration:
                     type: int
                     default_value: 10
 
+                start_frame:
+                    description: Start frame of exported plates.
+                    type: int
+                    default_value: 1001
+
                 #use_timecode_as_frame_number:
                 #    description: Use timecode frame numbering when exporting frame sequences
                 #                 (optional / commented out since default value do not populate on config upgrade)

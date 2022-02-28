@@ -139,6 +139,15 @@ class ExportPreset(object):
         """
         return self.__get_publish_name(self.get_batch_render_template(), path)
 
+    def get_start_frame(self, default):
+        """
+        Returns the start_frame for generated plates.
+
+        :return: Start frame of generated plates.
+        """
+
+        return self._raw_preset.get("start_frame", default)
+
     def get_handles_length(self):
         """
         Returns the length of the requested frame handles that should be generated
@@ -345,6 +354,7 @@ class ExportPreset(object):
                <name>
                   <framePadding>{FRAME_PADDING}</framePadding>
                   <useTimecode>{USE_TIMECODE}</useTimecode>
+                  <startFrame>{START_FRAME}</startFrame>
                </name>
 
                {CREATE_OPEN_CLIP}
@@ -431,6 +441,12 @@ class ExportPreset(object):
         self._app.log_debug(
             "Flame preset generation: Setting frame padding to %s based on "
             "%s token in template %s" % (frame_padding, frame_token, template)
+        )
+
+        start_frame = self.get_start_frame(1001)
+        xml = xml.replace("{START_FRAME}", str(start_frame))
+        self._app.log_debug(
+            "Flame preset generation: Setting start frame to %s." % start_frame
         )
 
         use_timecode = str(self._raw_preset.get("use_timecode_as_frame_number", True))
